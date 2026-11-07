@@ -12,6 +12,10 @@ find_package(OpenGL REQUIRED)
 add_executable(CudaRayTracing
         src/main.cpp
         externals/glad/src/glad.c
+        src/vec3.h
+        src/color.h
+        src/hittable.h
+        src/camera.h
 )
 
 target_include_directories(CudaRayTracing PRIVATE externals/glad/include)

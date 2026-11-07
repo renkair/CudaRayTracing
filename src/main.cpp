@@ -1,7 +1,11 @@
-﻿#include <iostream>
+﻿#include "rtweekend.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <vector>
+#include "hittable.h"
+#include "hittable_list.h"
+#include "sphere.h"
+#include "camera.h"
 
 
 const char* vertexShaderSource = R"(
@@ -37,35 +41,41 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
     glViewport(0, 0, width, height);
 }
 
+double hit_sphere(const point3& center, double radius, const ray& r) {
+    vec3 oc = center - r.origin();
+    auto a = r.direction().length_squared();
+    auto h = dot(r.direction(), oc);
+    auto c = oc.length_squared() - radius*radius;
+    auto discriminant = h*h - a*c;
+    if (discriminant < 0) {
+        return -1.0;
+    } else {
+        return (h - std::sqrt(discriminant)) / a;
+    }
+}
+
 
 int main()
 {
-    int width = 800;
-    int height = 600;
 
-    // Render
-    std::cout << "P3\n" << width << ' ' << height << "\n255\n";
-    std::vector<unsigned char> pixels(width * height * 3);
 
-    for (int j = 0; j < height; j++) {
-        std::clog << "\rScanlines remaining: " << (height - j) << ' ' << std::flush;
-        for (int i = 0; i < width; i++) {
-            auto r = double(i) / (width-1);
-            auto g = double(j) / (height-1);
-            auto b = 0.0;
+    // World
+    hittable_list world;
+    world.add(make_shared<sphere>(point3(0,0,-1), 0.5));
+    world.add(make_shared<sphere>(point3(0,-100.5,-1), 100));
 
-            int ir = int(255.999 * r);
-            int ig = int(255.999 * g);
-            int ib = int(255.999 * b);
+    camera cam;
 
-            int index = (j * width + i) * 3;
+    cam.aspect_ratio = 16.0 / 9.0;
+    cam.image_width  = 800;
+    cam.samples_per_pixel = 100;
+    cam.max_depth = 50;
 
-            pixels[index + 0] = ir;
-            pixels[index + 1] = ig;
-            pixels[index + 2] = ib;
-        }
-    }
-    std::clog << "\rDone.                 \n";
+    cam.render(world);
+
+
+
+
 
     GLFWwindow* window;
 
@@ -74,7 +84,7 @@ int main()
         return -1;
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(width, height, "CudaRayTracing", NULL, NULL);
+    window = glfwCreateWindow(cam.image_width, cam.image_height, "CudaRayTracing", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -110,20 +120,20 @@ int main()
         GL_TEXTURE_2D,
         0,
         GL_RGB8,
-        width,
-        height,
+        cam.image_width,
+        cam.image_height,
         0,
         GL_RGB,
         GL_UNSIGNED_BYTE,
-        pixels.data()
+        cam.pixels.data()
     );
 
 
     float vertices[] = {
-        1.0f,  1.0f, 0.0f, 1.0f, 1.0f, // top right
-        1.0f, -1.0f, 0.0f, 1.0f, 0.0f, // bottom right
-       -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, // bottom left
-       -1.0f,  1.0f, 0.0f, 0.0f, 1.0f   // top left
+        1.0f,  1.0f, 0.0f, 1.0f, 0.0f, // top right
+        1.0f, -1.0f, 0.0f, 1.0f, 1.0f, // bottom right
+       -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, // bottom left
+       -1.0f,  1.0f, 0.0f, 0.0f, 0.0f  // top left
    };
     unsigned int indices[] = {  // note that we start from 0!
         0, 1, 3,   // first triangle
