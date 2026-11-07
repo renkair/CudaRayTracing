@@ -15,7 +15,7 @@ inline double linear_to_gamma(double linear_component)
     return 0;
 }
 
-void write_color(std::ostream& out, const color& pixel_color) {
+void write_color(std::vector<unsigned char>& pixels, const color& pixel_color, int first_index) {
     auto r = pixel_color.x();
     auto g = pixel_color.y();
     auto b = pixel_color.z();
@@ -32,7 +32,9 @@ void write_color(std::ostream& out, const color& pixel_color) {
     int bbyte = int(256 * intensity.clamp(b));
 
     // Write out the pixel color components.
-    out << rbyte << ' ' << gbyte << ' ' << bbyte << '\n';
+    pixels[first_index + 0] = static_cast<unsigned char>(rbyte);
+    pixels[first_index + 1] = static_cast<unsigned char>(gbyte);
+    pixels[first_index + 2] = static_cast<unsigned char>(bbyte);
 }
 
 #endif
