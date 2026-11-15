@@ -7,6 +7,7 @@
 #include "sphere.h"
 #include "camera.h"
 #include "material.h"
+#include "render.h"
 
 
 const char* vertexShaderSource = R"(
@@ -117,11 +118,10 @@ int main()
     cam.defocus_angle = 0.6;
     cam.focus_dist    = 10.0;
 
-    cam.render(world);
-
-
-
-
+    //cam.render(world);
+    cam.initialize();
+    cam.pixels.resize(cam.image_width * cam.image_height * 3);
+    render_d(cam.pixels.data(), cam.image_width, cam.image_height);
 
     GLFWwindow* window;
 

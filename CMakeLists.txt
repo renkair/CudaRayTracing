@@ -17,9 +17,12 @@ add_executable(CudaRayTracing
         src/hittable.h
         src/camera.h
         src/material.h
+        src/render.h
+        src/render.cu
 )
 
 target_include_directories(CudaRayTracing PRIVATE externals/glad/include)
+target_include_directories(CudaRayTracing PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
 target_link_libraries(CudaRayTracing PRIVATE
         glfw

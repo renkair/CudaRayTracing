@@ -50,16 +50,6 @@ public:
         std::clog << "\rDone.                 \n";
     }
 
-private:
-    double pixel_samples_scale;  // Color scale factor for a sum of pixel samples
-    point3 center;         // Camera center
-    point3 pixel00_loc;    // Location of pixel 0, 0
-    vec3   pixel_delta_u;  // Offset to pixel to the right
-    vec3   pixel_delta_v;  // Offset to pixel below
-    vec3   u, v, w;              // Camera frame basis vectors
-    vec3   defocus_disk_u;       // Defocus disk horizontal radius
-    vec3   defocus_disk_v;       // Defocus disk vertical radius
-
     void initialize() {
         image_height = int(image_width / aspect_ratio);
         image_height = (image_height < 1) ? 1 : image_height;
@@ -97,6 +87,18 @@ private:
         defocus_disk_u = u * defocus_radius;
         defocus_disk_v = v * defocus_radius;
     }
+
+private:
+    double pixel_samples_scale;  // Color scale factor for a sum of pixel samples
+    point3 center;         // Camera center
+    point3 pixel00_loc;    // Location of pixel 0, 0
+    vec3   pixel_delta_u;  // Offset to pixel to the right
+    vec3   pixel_delta_v;  // Offset to pixel below
+    vec3   u, v, w;              // Camera frame basis vectors
+    vec3   defocus_disk_u;       // Defocus disk horizontal radius
+    vec3   defocus_disk_v;       // Defocus disk vertical radius
+
+
 
     ray get_ray(int i, int j) const {
         // Construct a camera ray originating from the defocus disk and directed at a randomly
