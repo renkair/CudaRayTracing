@@ -1,4 +1,6 @@
-﻿#include "rtweekend.h"
+﻿#include <curand_kernel.h>
+
+#include "rtweekend.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <vector>
@@ -121,6 +123,9 @@ int main()
     //cam.render(world);
     cam.initialize();
     cam.pixels.resize(cam.image_width * cam.image_height * 3);
+
+
+
     render_d(world.sceneData_h, cam.cameraData_h, cam.pixels.data(), cam.image_width, cam.image_height);
 
     GLFWwindow* window;
