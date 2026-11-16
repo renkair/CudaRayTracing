@@ -5,6 +5,17 @@
 #include "hittable.h"
 #include "rtweekend.h"
 #include "material.h"
+#include <cuda_runtime.h>
+
+struct CameraData {
+    point3 center;
+    point3 pixel00_loc;
+    vec3   pixel_delta_u;
+    vec3   pixel_delta_v;
+    vec3   defocus_disk_u;
+    vec3   defocus_disk_v;
+    double defocus_angle;
+};
 
 class camera {
 public:
@@ -23,6 +34,9 @@ public:
 
     double defocus_angle = 0;  // Variation angle of rays through each pixel
     double focus_dist = 10;    // Distance from camera lookfrom point to plane of perfect focus
+
+    /// GPU buffer
+    CameraData* cameraData_h;
 
     void render(const hittable& world) {
         initialize();
@@ -86,6 +100,17 @@ public:
         auto defocus_radius = focus_dist * std::tan(degrees_to_radians(defocus_angle / 2));
         defocus_disk_u = u * defocus_radius;
         defocus_disk_v = v * defocus_radius;
+
+
+        // create GPU Data
+        cameraData_h = (CameraData*)malloc(sizeof(CameraData));
+        cameraData_h->center = center;
+        cameraData_h->pixel00_loc = pixel00_loc;
+        cameraData_h->pixel_delta_u = pixel_delta_u;
+        cameraData_h->pixel_delta_v = pixel_delta_v;
+        cameraData_h->defocus_disk_u = defocus_disk_u;
+        cameraData_h->defocus_disk_v = defocus_disk_v;
+        cameraData_h->defocus_angle = defocus_angle;
     }
 
 private:

@@ -4,9 +4,11 @@
 #include "vec3.h"
 #include "interval.h"
 #include <iostream>
+#include <cuda_runtime.h>
 
 using color = vec3;
 
+__host__ __device__
 inline double linear_to_gamma(double linear_component)
 {
     if (linear_component > 0)
@@ -15,7 +17,7 @@ inline double linear_to_gamma(double linear_component)
     return 0;
 }
 
-void write_color(std::vector<unsigned char>& pixels, const color& pixel_color, int first_index) {
+inline void write_color(std::vector<unsigned char>& pixels, const color& pixel_color, int first_index) {
     auto r = pixel_color.x();
     auto g = pixel_color.y();
     auto b = pixel_color.z();

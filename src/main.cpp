@@ -121,7 +121,7 @@ int main()
     //cam.render(world);
     cam.initialize();
     cam.pixels.resize(cam.image_width * cam.image_height * 3);
-    render_d(cam.pixels.data(), cam.image_width, cam.image_height);
+    render_d(cam.cameraData_h, cam.pixels.data(), cam.image_width, cam.image_height);
 
     GLFWwindow* window;
 
