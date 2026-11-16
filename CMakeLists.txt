@@ -21,6 +21,7 @@ add_executable(CudaRayTracing
         src/material.h
         src/render.h
         src/render.cu
+        src/material.cuh
 )
 
 target_include_directories(CudaRayTracing PRIVATE externals/glad/include)

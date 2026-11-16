@@ -14,6 +14,7 @@ using std::shared_ptr;
 struct SphereGPU{
     double radius;
     vec3 center;
+    int materialType;
 };
 
 struct SceneData {

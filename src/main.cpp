@@ -1,7 +1,7 @@
 ﻿#include <curand_kernel.h>
-
 #include "rtweekend.h"
 #include <glad/glad.h>
+#include <cuda_gl_interop.h>
 #include <GLFW/glfw3.h>
 #include <vector>
 #include "hittable.h"
@@ -126,7 +126,7 @@ int main()
 
 
 
-    render_d(world.sceneData_h, cam.cameraData_h, cam.pixels.data(), cam.image_width, cam.image_height);
+    init(world.sceneData_h, cam.cameraData_h, cam.image_width, cam.image_height);
 
     GLFWwindow* window;
 
@@ -178,6 +178,18 @@ int main()
         GL_UNSIGNED_BYTE,
         cam.pixels.data()
     );
+
+    GLuint pbo = 0;
+    glGenBuffers(1, &pbo);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, cam.image_width*cam.image_height*3, nullptr, GL_STREAM_DRAW);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+    cudaGraphicsResource* pboRes = nullptr;
+    cudaError_t err = cudaGraphicsGLRegisterBuffer(&pboRes, pbo, cudaGraphicsMapFlagsWriteDiscard);
+    if (err != cudaSuccess) {
+        std::cout << "Failed to register buffer resource" << std::endl;
+    }
 
 
     float vertices[] = {
@@ -237,18 +249,38 @@ int main()
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
+
+    int pass = 0;
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
+        cudaError_t err = cudaGraphicsMapResources(1, &pboRes, 0);
+        if (err != cudaSuccess) {
+            std::cout << "Failed to map resources" << std::endl;
+        }
+        void* devPtr = nullptr;
+        size_t nbytes = 0;
+        err = cudaGraphicsResourceGetMappedPointer(&devPtr, &nbytes, pboRes);
+        if (err != cudaSuccess) {
+            std::cout << "Get mapped ptr failed" << std::endl;
+        }
         /* Render here */
+        renderPass(static_cast<unsigned char*>(devPtr), cam.image_width, cam.image_height);
+
+        cudaDeviceSynchronize();
+        cudaGraphicsUnmapResources(1, &pboRes, 0);
+
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, cam.image_width, cam.image_height, GL_RGB, GL_UNSIGNED_BYTE, 0);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-
         glUseProgram(shaderProgram);
-
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
-
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
@@ -259,8 +291,10 @@ int main()
 
         /* Poll for and process events */
         glfwPollEvents();
-    }
 
+        pass++;
+    }
+    destroy();
     glfwTerminate();
     return 0;
 }

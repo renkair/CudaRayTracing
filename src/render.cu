@@ -12,6 +12,7 @@ struct hitRecordGPU {
     double t;
     bool front_face;
 
+
     __device__
     void set_face_normal(const ray& r, const vec3& outward_normal) {
         // Sets the hit record normal vector.
@@ -27,19 +28,22 @@ __device__ bool hit(const ray& r, interval ray_t, vec3 center, float radius, hit
 
 __device__ ray get_ray(CameraData* cam, const ray& r, int i, int j, curandState* devStates, int idx);
 
-__device__ color rayColor(SceneData * scene, ray& r, curandState* globalState, int idx);
+__device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int idx);
 
-__device__ float randomFloat(curandState* globalState, int idx, float min, float max);
+__device__ float randomFloat(curandState* devStates, int idx, float min, float max);
 
 __device__ vec3 sample_square(curandState* devStates, int idx);
 
-__device__ vec3 random_unit_vector(curandState* globalState, int idx);
+__device__ vec3 random_unit_vector(curandState* devStates, int idx);
 
-__device__ vec3 random_on_hemisphere(const vec3& normal, curandState* globalState, int idx);
+__device__ vec3 random_on_hemisphere(const vec3& normal, curandState* devStates, int idx);
 
 
+CameraData* cameraData_d;
+SceneData* sceneData_d;
+curandState* devStates;
 
-__global__ void setupKernel( curandState * states, int width, int height, unsigned long seed)
+__global__ void setupKernel(curandState* states, int width, int height, unsigned long seed)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -54,7 +58,7 @@ __global__ void setupKernel( curandState * states, int width, int height, unsign
 
 
 __global__
-void renderKernel(SceneData* scene, CameraData* cam, unsigned char * pixels, int width, int height, curandState* devStates) {
+void renderKernel(SceneData* scene, CameraData* cam, unsigned char * pixels, int width, int height, curandState* states) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
     if (i < width && j < height) {
@@ -63,22 +67,19 @@ void renderKernel(SceneData* scene, CameraData* cam, unsigned char * pixels, int
         //ray r = get_ray(i, j);
 
         int idx = j * width + i;
-        
+
         color pixel_color = color(0.0f, 0.0f, 0.0f);
-        int samples = 16;
-        for (int k = 0; k < samples; k++) {
-            auto offset = sample_square(devStates, idx);
-            auto pixel_sample = cam->pixel00_loc
-                              + ((i + offset.x()) * cam->pixel_delta_u)
-                              + ((j + offset.y()) * cam->pixel_delta_v);
 
-            auto ray_origin = cam->center;
-            auto ray_direction = pixel_sample - ray_origin;
-            ray r = ray(ray_origin, ray_direction);
+        auto offset = sample_square(states, idx);
+        auto pixel_sample = cam->pixel00_loc
+                + ((i + offset.x()) * cam->pixel_delta_u)
+                + ((j + offset.y()) * cam->pixel_delta_v);
 
-            pixel_color += rayColor(scene,r, devStates, idx);
-        }
-        pixel_color *= 1.0 / samples;
+        auto ray_origin = cam->center;
+        auto ray_direction = pixel_sample - ray_origin;
+        ray r = ray(ray_origin, ray_direction);
+
+        pixel_color += rayColor(scene,r, states, idx);
 
         pixels[index + 0] = static_cast<unsigned char>(255.999 * pixel_color.x());
         pixels[index + 1] = static_cast<unsigned char>(255.999 * pixel_color.y());
@@ -86,55 +87,52 @@ void renderKernel(SceneData* scene, CameraData* cam, unsigned char * pixels, int
     }
 }
 
-
-
-void render_d(SceneData * sceneData_h, CameraData* cameraData_h, unsigned char *pixels_h, int width, int height) {
-    unsigned char* pixels_d;
-    int size = width * height * 3 * sizeof(unsigned char);
-
-    cudaError_t err = cudaMalloc((void **)&pixels_d, size);
+void init(SceneData * sceneData_h, CameraData* cameraData_h, int width, int height) {
+    cudaError_t err = cudaMalloc((void **)&cameraData_d, sizeof(CameraData));
     if (err != cudaSuccess) {
         std::cerr << "cudaMalloc failed: " << cudaGetErrorName(err) << "\n";
         exit(1);
     }
 
-    CameraData* cameraData_d;
-    err = cudaMalloc((void **)&cameraData_d, sizeof(CameraData));
-    if (err != cudaSuccess) {
-        std::cerr << "cudaMalloc failed: " << cudaGetErrorName(err) << "\n";
-        exit(1);
-    }
 
-    SceneData* sceneData_d;
     err = cudaMalloc((void **)&sceneData_d, sizeof(SceneData));
     if (err != cudaSuccess) {
         std::cerr << "cudaMalloc failed: " << cudaGetErrorName(err) << "\n";
         exit(1);
     }
 
-    cudaMemcpy(pixels_d, pixels_h, size, cudaMemcpyHostToDevice);
+    //cudaMemcpy(pixels_d, pixels_h, size, cudaMemcpyHostToDevice);
     cudaMemcpy(cameraData_d, cameraData_h, sizeof(CameraData), cudaMemcpyHostToDevice);
     cudaMemcpy(sceneData_d, sceneData_h, sizeof(SceneData), cudaMemcpyHostToDevice);
 
+    int N = 16*16*ceil(width*1.0f/16)*ceil(height*1.0f/16);
+
+    cudaMalloc (&devStates, N * sizeof(curandState));
     dim3 block_dim(16, 16);
     dim3 grid_dim(ceil(width*1.0f/16), ceil(height*1.0f/16));
-
-    int N = 16*16*ceil(width*1.0f/16)*ceil(height*1.0f/16);
-    curandState* devStates;
-    cudaMalloc (&devStates, N * sizeof(curandState));
-    setupKernel<<<grid_dim, block_dim>>>(devStates, width, height, 1234);
-    renderKernel<<<grid_dim, block_dim>>>(sceneData_d, cameraData_d, pixels_d, width, height, devStates);
-
-    cudaMemcpy(pixels_h, pixels_d, size, cudaMemcpyDeviceToHost);
-    cudaMemcpy(cameraData_h, cameraData_d, sizeof(CameraData), cudaMemcpyDeviceToHost);
-    cudaMemcpy(sceneData_h, sceneData_d, sizeof(SceneData), cudaMemcpyDeviceToHost);
-    // update camera data in host
-
-    cudaFree(pixels_d);
-    cudaFree(cameraData_d);
-    cudaFree(sceneData_d);
+    setupKernel<<<grid_dim, block_dim>>>( devStates, width, height, 1234);
 }
 
+void renderPass(unsigned char* dst, int width, int height) {
+    dim3 block_dim(16, 16);
+    dim3 grid_dim(ceil(width*1.0f/16), ceil(height*1.0f/16));
+    renderKernel<<<grid_dim, block_dim>>>(sceneData_d, cameraData_d, dst, width, height, devStates);
+
+    //int size = width * height * 3 * sizeof(unsigned char);
+    //cudaMemcpy(pixels_h, pixels_d, size, cudaMemcpyDeviceToHost);
+    //cudaMemcpy(cameraData_h, cameraData_d, sizeof(CameraData), cudaMemcpyDeviceToHost); // update camera data in host
+    //cudaMemcpy(sceneData_h, sceneData_d, sizeof(SceneData), cudaMemcpyDeviceToHost);
+
+}
+
+void destroy() {
+    cudaFree(devStates);
+    cudaFree(cameraData_d);
+    cudaFree(sceneData_d);
+    cameraData_d = nullptr;
+    sceneData_d  = nullptr;
+    devStates = nullptr;
+}
 
 
 
@@ -185,7 +183,7 @@ __device__ ray get_ray(CameraData* cam, const ray& r, int i, int j, curandState*
     return ray(ray_origin, ray_direction);
 }
 
-__device__ color rayColor(SceneData * scene, ray& r, curandState* state, int idx) {
+__device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int idx) {
     int max_depth = 50;
     // vec3 unit_direction = unit_vector(r.direction());
     // auto a = 0.5*(unit_direction.y() + 1.0);
@@ -219,18 +217,18 @@ __device__ color rayColor(SceneData * scene, ray& r, curandState* state, int idx
 
         hit(r, interval(0.001, 1e30), scene->spheres[cloestIdx].center, scene->spheres[cloestIdx].radius, rec);
         attenuation *= 0.5f;
-        vec3 direction = random_on_hemisphere(rec.normal, state, idx);
+        vec3 direction = random_on_hemisphere(rec.normal, devStates, idx);
         r = ray(rec.p, direction);
     }
 
     return vec3(0.0,0.0,0.0); // exceeded recursion
 }
 
-__device__ float randomFloat(curandState* globalState, int idx, float min, float max)
+__device__ float randomFloat(curandState* devStates, int idx, float min, float max)
 {
-    curandState localState = globalState[idx];
+    curandState localState = devStates[idx];
     float random = curand_uniform(&localState);
-    globalState[idx] = localState;
+    devStates[idx] = localState;
     return min + random * (max - min);
 }
 
@@ -240,17 +238,17 @@ __device__ vec3 sample_square(curandState* devStates, int idx){
     return vec3(randomFloat(devStates, idx, -0.5, 0.5), randomFloat(devStates, idx, -0.5, 0.5), 0);
 }
 
-__device__ vec3 random_unit_vector(curandState* globalState, int idx) {
+__device__ vec3 random_unit_vector(curandState* devStates, int idx) {
     while (true) {
-        auto p = vec3(randomFloat(globalState, idx, -1.0f, 1.0f), randomFloat(globalState, idx, -1.0f, 1.0f), randomFloat(globalState, idx, -1.0f, 1.0f));
+        auto p = vec3(randomFloat(devStates, idx, -1.0f, 1.0f), randomFloat(devStates, idx, -1.0f, 1.0f), randomFloat(devStates, idx, -1.0f, 1.0f));
         auto lensq = p.length_squared();
         if (1e-160 < lensq && lensq <= 1)
             return p / sqrt(lensq);
     }
 }
 
-__device__ vec3 random_on_hemisphere(const vec3& normal, curandState* globalState, int idx) {
-    vec3 on_unit_sphere = random_unit_vector(globalState, idx);
+__device__ vec3 random_on_hemisphere(const vec3& normal, curandState* devStates, int idx) {
+    vec3 on_unit_sphere = random_unit_vector(devStates, idx);
     if (dot(on_unit_sphere, normal) > 0.0) // In the same hemisphere as the normal
         return on_unit_sphere;
     else
