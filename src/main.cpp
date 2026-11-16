@@ -59,8 +59,6 @@ double hit_sphere(const point3& center, double radius, const ray& r) {
 
 int main()
 {
-
-
     // World
     hittable_list world;
     auto ground_material = make_shared<lambertian>(color(0.5, 0.5, 0.5));
@@ -103,6 +101,8 @@ int main()
     auto material3 = make_shared<metal>(color(0.7, 0.6, 0.5), 0.0);
     world.add(make_shared<sphere>(point3(4, 1, 0), 1.0, material3));
 
+    world.prepareSceneData();
+
     camera cam;
 
     cam.aspect_ratio      = 16.0 / 9.0;
@@ -121,7 +121,7 @@ int main()
     //cam.render(world);
     cam.initialize();
     cam.pixels.resize(cam.image_width * cam.image_height * 3);
-    render_d(cam.cameraData_h, cam.pixels.data(), cam.image_width, cam.image_height);
+    render_d(world.sceneData_h, cam.cameraData_h, cam.pixels.data(), cam.image_width, cam.image_height);
 
     GLFWwindow* window;
 
