@@ -58,8 +58,6 @@ __global__ void setupKernel(curandState* states, int width, int height, unsigned
 }
 
 
-
-
 __global__ void renderKernel(SceneData* scene, CameraData* cam, color* sumColor, int width, int height, curandState* states) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
@@ -232,6 +230,14 @@ __device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int
             return attenuation;
         }
 
+        float p = randomFloat(devStates, idx, 0.0f, 1.0f);
+        if (p <  0.5f) {
+            return color(0.0, 0.0, 0.0);
+        }
+
+        attenuation *= 2.0f;
+
+
         r = ray(closestRec.p, scattered.direction());
     }
 
@@ -313,7 +319,6 @@ __device__ bool scatter(MaterialGPU material, curandState* devStates, int idx, c
 
             scattered = ray(rec.p, direction);
             return true;
-
     }
 }
 
