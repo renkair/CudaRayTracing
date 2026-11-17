@@ -10,7 +10,7 @@
 #include "camera.h"
 #include "material.h"
 #include "render.h"
-
+#include <chrono>
 
 const char* vertexShaderSource = R"(
 #version 330 core
@@ -251,9 +251,13 @@ int main()
 
 
     int pass = 0;
+    color* sumColor = nullptr;
+    cudaMalloc((void**)&sumColor, cam.image_width*cam.image_height*sizeof(color));
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
+        auto frameStart = std::chrono::high_resolution_clock::now();
+
         cudaError_t err = cudaGraphicsMapResources(1, &pboRes, 0);
         if (err != cudaSuccess) {
             std::cout << "Failed to map resources" << std::endl;
@@ -265,7 +269,8 @@ int main()
             std::cout << "Get mapped ptr failed" << std::endl;
         }
         /* Render here */
-        renderPass(static_cast<unsigned char*>(devPtr), cam.image_width, cam.image_height);
+
+        renderPass(sumColor, static_cast<unsigned char*>(devPtr), ++pass, cam.image_width, cam.image_height);
 
         cudaDeviceSynchronize();
         cudaGraphicsUnmapResources(1, &pboRes, 0);
@@ -292,7 +297,12 @@ int main()
         /* Poll for and process events */
         glfwPollEvents();
 
-        pass++;
+        auto frameEnd = std::chrono::high_resolution_clock::now();
+        double frameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
+        double fps = 1000.0 / frameTime;
+        
+        printf("Pass: %d | Frame Time: %f ms | FPS: %f \n", pass, frameTime, fps);
+
     }
     destroy();
     glfwTerminate();

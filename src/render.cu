@@ -57,18 +57,12 @@ __global__ void setupKernel(curandState* states, int width, int height, unsigned
 
 
 
-__global__
-void renderKernel(SceneData* scene, CameraData* cam, unsigned char * pixels, int width, int height, curandState* states) {
+
+__global__ void renderKernel(SceneData* scene, CameraData* cam, color* sumColor, int width, int height, curandState* states) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
     if (i < width && j < height) {
-        int index = (j * width + i) * 3;
-
-        //ray r = get_ray(i, j);
-
         int idx = j * width + i;
-
-        color pixel_color = color(0.0f, 0.0f, 0.0f);
 
         auto offset = sample_square(states, idx);
         auto pixel_sample = cam->pixel00_loc
@@ -79,12 +73,20 @@ void renderKernel(SceneData* scene, CameraData* cam, unsigned char * pixels, int
         auto ray_direction = pixel_sample - ray_origin;
         ray r = ray(ray_origin, ray_direction);
 
-        pixel_color += rayColor(scene,r, states, idx);
-
-        pixels[index + 0] = static_cast<unsigned char>(255.999 * pixel_color.x());
-        pixels[index + 1] = static_cast<unsigned char>(255.999 * pixel_color.y());
-        pixels[index + 2] = static_cast<unsigned char>(255.999 * pixel_color.z());
+        sumColor[idx] += rayColor(scene,r, states, idx);
     }
+}
+__global__ void resolveKernel(color* sumColor, unsigned char * pixels, int pass, int width, int height) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    if (i < width && j < height) {
+        int index = (j * width + i) * 3;
+        int idx = j * width + i;
+        pixels[index + 0] = static_cast<unsigned char>(255.999 * (sumColor[idx].x()/pass));
+        pixels[index + 1] = static_cast<unsigned char>(255.999 * (sumColor[idx].y()/pass));
+        pixels[index + 2] = static_cast<unsigned char>(255.999 * (sumColor[idx].z()/pass));
+    }
+
 }
 
 void init(SceneData * sceneData_h, CameraData* cameraData_h, int width, int height) {
@@ -113,16 +115,11 @@ void init(SceneData * sceneData_h, CameraData* cameraData_h, int width, int heig
     setupKernel<<<grid_dim, block_dim>>>( devStates, width, height, 1234);
 }
 
-void renderPass(unsigned char* dst, int width, int height) {
+void renderPass(color* sumColor, unsigned char* dst, int pass, int width, int height) {
     dim3 block_dim(16, 16);
     dim3 grid_dim(ceil(width*1.0f/16), ceil(height*1.0f/16));
-    renderKernel<<<grid_dim, block_dim>>>(sceneData_d, cameraData_d, dst, width, height, devStates);
-
-    //int size = width * height * 3 * sizeof(unsigned char);
-    //cudaMemcpy(pixels_h, pixels_d, size, cudaMemcpyDeviceToHost);
-    //cudaMemcpy(cameraData_h, cameraData_d, sizeof(CameraData), cudaMemcpyDeviceToHost); // update camera data in host
-    //cudaMemcpy(sceneData_h, sceneData_d, sizeof(SceneData), cudaMemcpyDeviceToHost);
-
+    renderKernel<<<grid_dim, block_dim>>>(sceneData_d, cameraData_d, sumColor, width, height, devStates);
+    resolveKernel<<<grid_dim, block_dim>>>(sumColor, dst, pass, width, height);
 }
 
 void destroy() {
