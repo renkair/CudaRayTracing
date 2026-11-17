@@ -4,6 +4,7 @@ project(CudaRayTracing C CXX CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_ARCHITECTURES 120)
 
 add_subdirectory(externals/glfw)
 include_directories(externals/glfw/include)
@@ -31,5 +32,4 @@ target_link_libraries(CudaRayTracing PRIVATE
         OpenGL::GL
 )
 
-set_target_properties(CudaRayTracing PROPERTIES
-        CUDA_SEPARABLE_COMPILATION ON)
+

@@ -94,7 +94,7 @@ __global__ void resolveKernel(color* sumColor, unsigned char * pixels, int pass,
 
 }
 
-void init(SceneData * sceneData_h, CameraData* cameraData_h, int width, int height) {
+void initDeviceData(SceneData * sceneData_h, CameraData* cameraData_h, int width, int height) {
     cudaError_t err = cudaMalloc((void **)&cameraData_d, sizeof(CameraData));
     if (err != cudaSuccess) {
         std::cerr << "cudaMalloc failed: " << cudaGetErrorName(err) << "\n";
@@ -227,17 +227,16 @@ __device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int
 
         bool hasNextRay = scatter(material, devStates, idx, r_in, closestRec, attenuation, scattered);
         if (!hasNextRay) {
-            return attenuation;
-        }
-
-        float p = randomFloat(devStates, idx, 0.0f, 1.0f);
-        if (p <  0.5f) {
             return color(0.0, 0.0, 0.0);
         }
 
-        attenuation *= 2.0f;
-
-
+        if (material.type == MaterialType::Lambertian && bounce > 10) {
+            float p = randomFloat(devStates, idx, 0.0f, 1.0f);
+            if (p <  0.5f) {
+                return color(0.0, 0.0, 0.0);
+            }
+            attenuation *= 2.0f;
+        }
         r = ray(closestRec.p, scattered.direction());
     }
 
@@ -287,7 +286,7 @@ __device__ double reflectance(double cosine, double refraction_index) {
 
 __device__ bool scatter(MaterialGPU material, curandState* devStates, int idx, const ray& r_in, const hitRecordGPU& rec, color& attenuation, ray& scattered) {
     switch (material.type) {
-        case 0:
+        case MaterialType::Lambertian:
             auto scatter_direction = rec.normal + random_unit_vector(devStates, idx);
             // Catch degenerate scatter direction
             if (scatter_direction.near_zero())
@@ -295,13 +294,13 @@ __device__ bool scatter(MaterialGPU material, curandState* devStates, int idx, c
             scattered = ray(rec.p, scatter_direction);
             attenuation = attenuation * material.albedo;
             return true;
-        case 1:
+        case MaterialType::Metal:
             vec3 reflected = reflect(r_in.direction(), rec.normal);
             reflected = unit_vector(reflected) + (material.fuzz * random_unit_vector(devStates, idx));
             scattered = ray(rec.p, reflected);
             attenuation = attenuation * material.albedo;
             return (dot(scattered.direction(), rec.normal) > 0);
-        case 2:
+        case MaterialType::Dielectric:
             attenuation = color(1.0, 1.0, 1.0);
             double ri = rec.front_face ? (1.0/material.refraction_index) : material.refraction_index;
 
@@ -319,6 +318,8 @@ __device__ bool scatter(MaterialGPU material, curandState* devStates, int idx, c
 
             scattered = ray(rec.p, direction);
             return true;
+        case MaterialType::None:
+            return false;
     }
 }
 

@@ -17,8 +17,15 @@ struct SphereGPU{
     vec3 center;
 };
 
+enum class MaterialType : int{
+    None = -1,
+    Lambertian = 0,
+    Metal = 1,
+    Dielectric = 2,
+};
+
 struct MaterialGPU {
-    int type = -1; // 0 - lambertian, 1 - metal,  2 - dielectric
+    MaterialType type = MaterialType::None; // 0 - lambertian, 1 - metal,  2 - dielectric
     color albedo;
     double fuzz;
     double refraction_index;
@@ -87,14 +94,17 @@ public:
             auto material_ptr = std::dynamic_pointer_cast<material>(sphere_ptr->getMat());
             if (auto lambertian_ptr = std::dynamic_pointer_cast<lambertian>(material_ptr)) {
                 // Material is Lambertian
-                materials_h.push_back(MaterialGPU{0, lambertian_ptr->getAlbedo(), -1, -1});
+                materials_h.push_back(MaterialGPU{MaterialType::Lambertian, lambertian_ptr->getAlbedo(), -1, -1});
             }else if (auto metal_ptr = std::dynamic_pointer_cast<metal>(material_ptr)) {
                 // Material is Metal
-                materials_h.push_back(MaterialGPU{1, metal_ptr->getAlbedo(), metal_ptr->getFuzz(), -1});
+                materials_h.push_back(MaterialGPU{MaterialType::Metal, metal_ptr->getAlbedo(), metal_ptr->getFuzz(), -1});
 
             }else if (auto dielectric_ptr = std::dynamic_pointer_cast<dielectric>(material_ptr)) {
                 // Material is dielectric
-                materials_h.push_back(MaterialGPU{2, color(), -1, dielectric_ptr->getRefractionIndex()});
+                materials_h.push_back(MaterialGPU{MaterialType::Dielectric, color(), -1, dielectric_ptr->getRefractionIndex()});
+            }
+            else {
+                materials_h.push_back(MaterialGPU{MaterialType::None, color(), 0, 0});
             }
         }
         MaterialGPU* materials_d = nullptr;

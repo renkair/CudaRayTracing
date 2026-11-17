@@ -58,11 +58,8 @@ double hit_sphere(const point3& center, double radius, const ray& r) {
     }
 }
 
+void initWorld(hittable_list& world) {
 
-int main()
-{
-    // World
-    hittable_list world;
     auto ground_material = make_shared<lambertian>(color(0.5, 0.5, 0.5));
     world.add(make_shared<sphere>(point3(0,-1000,0), 1000, ground_material));
 
@@ -102,38 +99,38 @@ int main()
 
     auto material3 = make_shared<metal>(color(0.7, 0.6, 0.5), 0.0);
     world.add(make_shared<sphere>(point3(4, 1, 0), 1.0, material3));
+}
 
+
+int main()
+{
+    // World
+    hittable_list world;
+    initWorld(world);
     world.prepareSceneData();
 
     camera cam;
-
     cam.aspect_ratio      = 16.0 / 9.0;
     cam.image_width       = 1280;
     cam.samples_per_pixel = 500;
     cam.max_depth         = 50;
-
     cam.vfov     = 20;
     cam.lookfrom = point3(13,2,3);
     cam.lookat   = point3(0,0,0);
     cam.vup      = vec3(0,1,0);
-
     cam.defocus_angle = 0.6;
     cam.focus_dist    = 10.0;
-
     //cam.render(world);
     cam.initialize();
     cam.pixels.resize(cam.image_width * cam.image_height * 3);
 
 
-
-    init(world.sceneData_h, cam.cameraData_h, cam.image_width, cam.image_height);
+    initDeviceData(world.sceneData_h, cam.cameraData_h, cam.image_width, cam.image_height);
 
     GLFWwindow* window;
-
     /* Initialize the library */
     if (!glfwInit())
         return -1;
-
     /* Create a windowed mode window and its OpenGL context */
     window = glfwCreateWindow(cam.image_width, cam.image_height, "CudaRayTracing", NULL, NULL);
     if (!window)
@@ -141,8 +138,6 @@ int main()
         glfwTerminate();
         return -1;
     }
-
-
 
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
