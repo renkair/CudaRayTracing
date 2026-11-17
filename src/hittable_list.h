@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "sphere.h"
+#include "material.h"
 
 using std::make_shared;
 using std::shared_ptr;
@@ -14,12 +15,19 @@ using std::shared_ptr;
 struct SphereGPU{
     double radius;
     vec3 center;
-    int materialType;
+};
+
+struct MaterialGPU {
+    int type = -1; // 0 - lambertian, 1 - metal,  2 - dielectric
+    color albedo;
+    double fuzz;
+    double refraction_index;
 };
 
 struct SceneData {
     SphereGPU* spheres = nullptr;
     int sphereCount = 0;
+    MaterialGPU* materials = nullptr;
 };
 
 class hittable_list : public hittable {
@@ -53,21 +61,16 @@ public:
     }
 
     void prepareSceneData() {
-
+        // Prepare Sphere Data
         std::vector<SphereGPU> spheres_h;
         spheres_h.reserve(objects.size()); // temp
-
-
         for (auto& object : objects) {
             const auto sphere_ptr = std::dynamic_pointer_cast<sphere>(object);
             if (sphere_ptr != nullptr) {
                 spheres_h.push_back(SphereGPU{sphere_ptr->getRadius(), sphere_ptr->getCenter()});
             }
         }
-
-
         SphereGPU* spheres_d = nullptr;
-
         cudaError_t err = cudaMalloc((void**)&spheres_d, sizeof(SphereGPU) * spheres_h.size());
         if (err != cudaSuccess) {
             std::cerr << "cudaMalloc failed: " << cudaGetErrorName(err) << "\n";
@@ -75,9 +78,38 @@ public:
         }
         cudaMemcpy(spheres_d, spheres_h.data(), sizeof(SphereGPU) *  spheres_h.size(), cudaMemcpyHostToDevice);
 
+
+        // Prepare Materials Data
+        std::vector<MaterialGPU> materials_h;
+        materials_h.reserve(objects.size());
+        for (auto& object : objects) {
+            const auto sphere_ptr = std::dynamic_pointer_cast<sphere>(object);
+            auto material_ptr = std::dynamic_pointer_cast<material>(sphere_ptr->getMat());
+            if (auto lambertian_ptr = std::dynamic_pointer_cast<lambertian>(material_ptr)) {
+                // Material is Lambertian
+                materials_h.push_back(MaterialGPU{0, lambertian_ptr->getAlbedo(), -1, -1});
+            }else if (auto metal_ptr = std::dynamic_pointer_cast<metal>(material_ptr)) {
+                // Material is Metal
+                materials_h.push_back(MaterialGPU{1, metal_ptr->getAlbedo(), metal_ptr->getFuzz(), -1});
+
+            }else if (auto dielectric_ptr = std::dynamic_pointer_cast<dielectric>(material_ptr)) {
+                // Material is dielectric
+                materials_h.push_back(MaterialGPU{2, color(), -1, dielectric_ptr->getRefractionIndex()});
+            }
+        }
+        MaterialGPU* materials_d = nullptr;
+        err = cudaMalloc((void**)&materials_d, sizeof(MaterialGPU)*materials_h.size());
+        if (err != cudaSuccess) {
+            std::cerr << "cudaMalloc failed: " << cudaGetErrorName(err) << "\n";
+        }
+        cudaMemcpy(materials_d, materials_h.data(), sizeof(MaterialGPU) * materials_h.size(), cudaMemcpyHostToDevice);
+
+
         sceneData_h = (SceneData*)malloc(sizeof(SceneData));
         sceneData_h->spheres = spheres_d;
+        sceneData_h->materials = materials_d;
         sceneData_h->sphereCount = spheres_h.size();
+
     }
 };
 

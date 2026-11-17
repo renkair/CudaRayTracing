@@ -108,7 +108,7 @@ int main()
     camera cam;
 
     cam.aspect_ratio      = 16.0 / 9.0;
-    cam.image_width       = 1200;
+    cam.image_width       = 1280;
     cam.samples_per_pixel = 500;
     cam.max_depth         = 50;
 
@@ -300,7 +300,7 @@ int main()
         auto frameEnd = std::chrono::high_resolution_clock::now();
         double frameTime = std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
         double fps = 1000.0 / frameTime;
-        
+
         printf("Pass: %d | Frame Time: %f ms | FPS: %f \n", pass, frameTime, fps);
 
     }

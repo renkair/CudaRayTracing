@@ -31,6 +31,11 @@ public:
         return true;
     }
 
+    [[nodiscard]] color getAlbedo() const {
+        return albedo;
+    }
+
+
 private:
     color albedo;
 };
@@ -47,6 +52,13 @@ public:
         scattered = ray(rec.p, reflected);
         attenuation = albedo;
         return (dot(scattered.direction(), rec.normal) > 0);
+    }
+    [[nodiscard]] color getAlbedo() const {
+        return albedo;
+    }
+
+    [[nodiscard]] double getFuzz() const {
+        return fuzz;
     }
 
 private:
@@ -77,6 +89,11 @@ public:
 
         scattered = ray(rec.p, direction);
         return true;
+    }
+
+
+    [[nodiscard]] double getRefractionIndex() const {
+        return refraction_index;
     }
 
 private:

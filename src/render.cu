@@ -38,6 +38,8 @@ __device__ vec3 random_unit_vector(curandState* devStates, int idx);
 
 __device__ vec3 random_on_hemisphere(const vec3& normal, curandState* devStates, int idx);
 
+__device__ bool scatter(MaterialGPU material, curandState* devStates, int idx, const ray& r_in, const hitRecordGPU& rec, color& attenuation, ray& scattered);
+
 
 CameraData* cameraData_d;
 SceneData* sceneData_d;
@@ -187,35 +189,45 @@ __device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int
     // vec3 skyColor = (1.0-a)*color(1.0, 1.0, 1.0) + a*color(0.5, 0.7, 1.0);
     color attenuation(1.0, 1.0, 1.0);
 
+
     for (int bounce = 0; bounce < max_depth; bounce++) {
-        hitRecordGPU rec;
+        hitRecordGPU rec, closestRec;
+        ray r_in = r;
         double closest = 1e30;
-        int cloestIdx = -1;
+        int closestIdx = -1;
         for (int i = 0; i < scene->sphereCount; i++) {
 
             auto sphereRadius = scene->spheres[i].radius;
             auto sphereCenter = scene->spheres[i].center;
 
+
             if (hit(r, interval(0.001, 1e30), sphereCenter, sphereRadius, rec)) {
                 if (rec.t < closest) {
                     closest = rec.t;
-                    cloestIdx = i;
+                    closestIdx = i;
+                    closestRec = rec;
                 }
                 //cur_ray = ray(rec.p, target-rec.p)
             }
         }
-        if (cloestIdx < 0) {
+        if (closestIdx < 0) {
+
             vec3 unit_direction = unit_vector(r.direction());
             auto a = 0.5*(unit_direction.y() + 1.0);
             vec3 skyColor = (1.0-a)*color(1.0, 1.0, 1.0) + a*color(0.5, 0.7, 1.0);
+
             return attenuation*skyColor;
         }
 
+        MaterialGPU material = scene->materials[closestIdx];
+        ray scattered;
 
-        hit(r, interval(0.001, 1e30), scene->spheres[cloestIdx].center, scene->spheres[cloestIdx].radius, rec);
-        attenuation *= 0.5f;
-        vec3 direction = random_on_hemisphere(rec.normal, devStates, idx);
-        r = ray(rec.p, direction);
+        bool hasNextRay = scatter(material, devStates, idx, r_in, closestRec, attenuation, scattered);
+        if (!hasNextRay) {
+            return attenuation;
+        }
+
+        r = ray(closestRec.p, scattered.direction());
     }
 
     return vec3(0.0,0.0,0.0); // exceeded recursion
@@ -250,5 +262,53 @@ __device__ vec3 random_on_hemisphere(const vec3& normal, curandState* devStates,
         return on_unit_sphere;
     else
         return -on_unit_sphere;
+}
+
+
+
+__device__ double reflectance(double cosine, double refraction_index) {
+    // Use Schlick's approximation for reflectance.
+    auto r0 = (1 - refraction_index) / (1 + refraction_index);
+    r0 = r0*r0;
+    return r0 + (1-r0)*std::pow((1 - cosine),5);
+}
+
+
+__device__ bool scatter(MaterialGPU material, curandState* devStates, int idx, const ray& r_in, const hitRecordGPU& rec, color& attenuation, ray& scattered) {
+    switch (material.type) {
+        case 0:
+            auto scatter_direction = rec.normal + random_unit_vector(devStates, idx);
+            // Catch degenerate scatter direction
+            if (scatter_direction.near_zero())
+                scatter_direction = rec.normal;
+            scattered = ray(rec.p, scatter_direction);
+            attenuation = attenuation * material.albedo;
+            return true;
+        case 1:
+            vec3 reflected = reflect(r_in.direction(), rec.normal);
+            reflected = unit_vector(reflected) + (material.fuzz * random_unit_vector(devStates, idx));
+            scattered = ray(rec.p, reflected);
+            attenuation = attenuation * material.albedo;
+            return (dot(scattered.direction(), rec.normal) > 0);
+        case 2:
+            attenuation = color(1.0, 1.0, 1.0);
+            double ri = rec.front_face ? (1.0/material.refraction_index) : material.refraction_index;
+
+            vec3 unit_direction = unit_vector(r_in.direction());
+            double cos_theta = std::fmin(dot(-unit_direction, rec.normal), 1.0);
+            double sin_theta = std::sqrt(1.0 - cos_theta*cos_theta);
+
+            bool cannot_refract = ri * sin_theta > 1.0;
+            vec3 direction;
+
+            if (cannot_refract || reflectance(cos_theta, ri) > randomFloat(devStates, idx, 0.0f, 1.0f))
+                direction = reflect(unit_direction, rec.normal);
+            else
+                direction = refract(unit_direction, rec.normal, ri);
+
+            scattered = ray(rec.p, direction);
+            return true;
+
+    }
 }
 
