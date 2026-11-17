@@ -7,14 +7,14 @@
 class sphere : public hittable {
 public:
 
-    sphere(const point3& center, double radius, shared_ptr<material> mat)
+    sphere(const point3& center, float radius, shared_ptr<material> mat)
       : center(center), radius(std::fmax(0,radius)), mat(mat) {}
 
     [[nodiscard]] vec3 getCenter() const {
         return center;
     }
 
-    [[nodiscard]] double getRadius() const {
+    [[nodiscard]] float getRadius() const {
         return radius;
     }
 
@@ -23,18 +23,18 @@ public:
     }
     bool hit(const ray& r, interval ray_t, hit_record& rec) const override {
         vec3 oc = center - r.origin();
-        auto a = r.direction().length_squared();
-        auto h = dot(r.direction(), oc);
-        auto c = oc.length_squared() - radius*radius;
+        float a = r.direction().length_squared();
+        float h = dot(r.direction(), oc);
+        float c = oc.length_squared() - radius*radius;
 
-        auto discriminant = h*h - a*c;
+        float discriminant = h*h - a*c;
         if (discriminant < 0)
             return false;
 
-        auto sqrtd = std::sqrt(discriminant);
+        float sqrtd = std::sqrt(discriminant);
 
         // Find the nearest root that lies in the acceptable range.
-        auto root = (h - sqrtd) / a;
+        float root = (h - sqrtd) / a;
         if (!ray_t.surrounds(root)) {
             root = (h + sqrtd) / a;
             if (!ray_t.surrounds(root))
@@ -52,7 +52,7 @@ public:
 
 private:
     point3 center;
-    double radius;
+    float radius;
     shared_ptr<material> mat;
 };
 

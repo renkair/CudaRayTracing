@@ -9,7 +9,7 @@
 struct hitRecordGPU {
     point3 p;
     vec3 normal;
-    double t;
+    float t;
     bool front_face;
 
 
@@ -17,7 +17,7 @@ struct hitRecordGPU {
     void set_face_normal(const ray& r, const vec3& outward_normal) {
         // Sets the hit record normal vector.
         // NOTE: the parameter `outward_normal` is assumed to have unit length.
-        front_face = dot(r.direction(), outward_normal) < 0;
+        front_face = dot(r.direction(), outward_normal) < 0.0f;
         normal = front_face ? outward_normal : -outward_normal;
     }
 };
@@ -83,13 +83,13 @@ __global__ void resolveKernel(color* sumColor, unsigned char * pixels, int pass,
         int index = (j * width + i) * 3;
         int idx = j * width + i;
 
-        double r = linear_to_gamma(sumColor[idx].x()/pass);
-        double g = linear_to_gamma(sumColor[idx].y()/pass);
-        double b = linear_to_gamma(sumColor[idx].z()/pass);
+        float r = linear_to_gamma(sumColor[idx].x()/pass);
+        float g = linear_to_gamma(sumColor[idx].y()/pass);
+        float b = linear_to_gamma(sumColor[idx].z()/pass);
 
-        pixels[index + 0] = static_cast<unsigned char>(255.999 * r);
-        pixels[index + 1] = static_cast<unsigned char>(255.999 * g);
-        pixels[index + 2] = static_cast<unsigned char>(255.999 * b);
+        pixels[index + 0] = static_cast<unsigned char>(255.999f * r);
+        pixels[index + 1] = static_cast<unsigned char>(255.999f * g);
+        pixels[index + 2] = static_cast<unsigned char>(255.999f * b);
     }
 
 }
@@ -145,7 +145,7 @@ __device__ bool hit(const ray& r, interval ray_t, vec3 center, float radius, hit
     auto c = oc.length_squared() - radius*radius;
 
     auto discriminant = h*h - a*c;
-    if (discriminant < 0)
+    if (discriminant < 0.0f)
         return false;
 
     auto sqrtd = std::sqrt(discriminant);
@@ -190,21 +190,21 @@ __device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int
     // vec3 unit_direction = unit_vector(r.direction());
     // auto a = 0.5*(unit_direction.y() + 1.0);
     // vec3 skyColor = (1.0-a)*color(1.0, 1.0, 1.0) + a*color(0.5, 0.7, 1.0);
-    color attenuation(1.0, 1.0, 1.0);
+    color attenuation(1.0f, 1.0f, 1.0f);
 
 
     for (int bounce = 0; bounce < max_depth; bounce++) {
         hitRecordGPU rec, closestRec;
         ray r_in = r;
-        double closest = 1e30;
+        float closest = 1e30f;
         int closestIdx = -1;
         for (int i = 0; i < scene->sphereCount; i++) {
 
-            auto sphereRadius = scene->spheres[i].radius;
+            float sphereRadius = scene->spheres[i].radius;
             auto sphereCenter = scene->spheres[i].center;
 
 
-            if (hit(r, interval(0.001, 1e30), sphereCenter, sphereRadius, rec)) {
+            if (hit(r, interval(0.001f, 1e30f), sphereCenter, sphereRadius, rec)) {
                 if (rec.t < closest) {
                     closest = rec.t;
                     closestIdx = i;
@@ -216,8 +216,8 @@ __device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int
         if (closestIdx < 0) {
 
             vec3 unit_direction = unit_vector(r.direction());
-            auto a = 0.5*(unit_direction.y() + 1.0);
-            vec3 skyColor = (1.0-a)*color(1.0, 1.0, 1.0) + a*color(0.5, 0.7, 1.0);
+            float a = 0.5f*(unit_direction.y() + 1.0f);
+            vec3 skyColor = (1.0-a)*color(1.0f, 1.0f, 1.0f) + a*color(0.5f, 0.7f, 1.0f);
 
             return attenuation*skyColor;
         }
@@ -227,20 +227,20 @@ __device__ color rayColor(SceneData * scene, ray& r, curandState* devStates, int
 
         bool hasNextRay = scatter(material, devStates, idx, r_in, closestRec, attenuation, scattered);
         if (!hasNextRay) {
-            return color(0.0, 0.0, 0.0);
+            return color(0.0f, 0.0f, 0.0f);
         }
 
         if (material.type == MaterialType::Lambertian && bounce > 10) {
             float p = randomFloat(devStates, idx, 0.0f, 1.0f);
             if (p <  0.5f) {
-                return color(0.0, 0.0, 0.0);
+                return color(0.0f, 0.0f, 0.0f);
             }
             attenuation *= 2.0f;
         }
         r = ray(closestRec.p, scattered.direction());
     }
 
-    return vec3(0.0,0.0,0.0); // exceeded recursion
+    return vec3(0.0f,0.0f,0.0f); // exceeded recursion
 }
 
 __device__ float randomFloat(curandState* devStates, int idx, float min, float max)
@@ -254,21 +254,21 @@ __device__ float randomFloat(curandState* devStates, int idx, float min, float m
 
 __device__ vec3 sample_square(curandState* devStates, int idx){
     // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
-    return vec3(randomFloat(devStates, idx, -0.5, 0.5), randomFloat(devStates, idx, -0.5, 0.5), 0);
+    return vec3(randomFloat(devStates, idx, -0.5f, 0.5f), randomFloat(devStates, idx, -0.5f, 0.5f), 0.0f);
 }
 
 __device__ vec3 random_unit_vector(curandState* devStates, int idx) {
     while (true) {
         auto p = vec3(randomFloat(devStates, idx, -1.0f, 1.0f), randomFloat(devStates, idx, -1.0f, 1.0f), randomFloat(devStates, idx, -1.0f, 1.0f));
         auto lensq = p.length_squared();
-        if (1e-160 < lensq && lensq <= 1)
+        if (FLT_MIN < lensq && lensq <= 1.0f)
             return p / sqrt(lensq);
     }
 }
 
 __device__ vec3 random_on_hemisphere(const vec3& normal, curandState* devStates, int idx) {
     vec3 on_unit_sphere = random_unit_vector(devStates, idx);
-    if (dot(on_unit_sphere, normal) > 0.0) // In the same hemisphere as the normal
+    if (dot(on_unit_sphere, normal) > 0.0f) // In the same hemisphere as the normal
         return on_unit_sphere;
     else
         return -on_unit_sphere;
@@ -276,11 +276,11 @@ __device__ vec3 random_on_hemisphere(const vec3& normal, curandState* devStates,
 
 
 
-__device__ double reflectance(double cosine, double refraction_index) {
+__device__ float reflectance(float cosine, float refraction_index) {
     // Use Schlick's approximation for reflectance.
-    auto r0 = (1 - refraction_index) / (1 + refraction_index);
+    float r0 = (1.0f - refraction_index) / (1.0f + refraction_index);
     r0 = r0*r0;
-    return r0 + (1-r0)*std::pow((1 - cosine),5);
+    return r0 + (1.0f-r0)*std::pow((1.0f - cosine), 5.0f);
 }
 
 
@@ -299,16 +299,16 @@ __device__ bool scatter(MaterialGPU material, curandState* devStates, int idx, c
             reflected = unit_vector(reflected) + (material.fuzz * random_unit_vector(devStates, idx));
             scattered = ray(rec.p, reflected);
             attenuation = attenuation * material.albedo;
-            return (dot(scattered.direction(), rec.normal) > 0);
+            return (dot(scattered.direction(), rec.normal) > 0.0f);
         case MaterialType::Dielectric:
-            attenuation = color(1.0, 1.0, 1.0);
-            double ri = rec.front_face ? (1.0/material.refraction_index) : material.refraction_index;
+            attenuation = color(1.0f, 1.0f, 1.0f);
+            float ri = rec.front_face ? (1.0f/material.refraction_index) : material.refraction_index;
 
             vec3 unit_direction = unit_vector(r_in.direction());
-            double cos_theta = std::fmin(dot(-unit_direction, rec.normal), 1.0);
-            double sin_theta = std::sqrt(1.0 - cos_theta*cos_theta);
+            float cos_theta = std::fmin(dot(-unit_direction, rec.normal), 1.0f);
+            float sin_theta = std::sqrt(1.0f - cos_theta*cos_theta);
 
-            bool cannot_refract = ri * sin_theta > 1.0;
+            bool cannot_refract = ri * sin_theta > 1.0f;
             vec3 direction;
 
             if (cannot_refract || reflectance(cos_theta, ri) > randomFloat(devStates, idx, 0.0f, 1.0f))

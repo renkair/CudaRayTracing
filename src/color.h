@@ -9,7 +9,7 @@
 using color = vec3;
 
 __host__ __device__
-inline double linear_to_gamma(double linear_component)
+inline float linear_to_gamma(float linear_component)
 {
     if (linear_component > 0)
         return std::sqrt(linear_component);
@@ -18,9 +18,9 @@ inline double linear_to_gamma(double linear_component)
 }
 
 inline void write_color(std::vector<unsigned char>& pixels, const color& pixel_color, int first_index) {
-    auto r = pixel_color.x();
-    auto g = pixel_color.y();
-    auto b = pixel_color.z();
+    float r = pixel_color.x();
+    float g = pixel_color.y();
+    float b = pixel_color.z();
 
     // Apply a linear to gamma transform for gamma 2
     r = linear_to_gamma(r);

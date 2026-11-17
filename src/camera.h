@@ -14,13 +14,13 @@ struct CameraData {
     vec3   pixel_delta_v;
     vec3   defocus_disk_u;
     vec3   defocus_disk_v;
-    double defocus_angle;
+    float defocus_angle;
 };
 
 class camera {
 public:
     // Image
-    double aspect_ratio = 16.0 / 9.0;
+    float aspect_ratio = 16.0 / 9.0;
     int image_width  = 800;
     int image_height;   // Rendered image height
     int samples_per_pixel = 10;   // Count of random samples for each pixel
@@ -142,7 +142,7 @@ private:
 
     vec3 sample_square() const {
         // Returns the vector to a random point in the [-.5,-.5]-[+.5,+.5] unit square.
-        return vec3(random_double() - 0.5, random_double() - 0.5, 0);
+        return vec3(random_float() - 0.5, random_float() - 0.5, 0);
     }
 
     point3 defocus_disk_sample() const {

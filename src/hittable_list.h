@@ -13,7 +13,7 @@ using std::make_shared;
 using std::shared_ptr;
 
 struct SphereGPU{
-    double radius;
+    float radius;
     vec3 center;
 };
 
@@ -27,8 +27,8 @@ enum class MaterialType : int{
 struct MaterialGPU {
     MaterialType type = MaterialType::None; // 0 - lambertian, 1 - metal,  2 - dielectric
     color albedo;
-    double fuzz;
-    double refraction_index;
+    float fuzz;
+    float refraction_index;
 };
 
 struct SceneData {
@@ -54,7 +54,7 @@ public:
     bool hit(const ray& r, interval ray_t, hit_record& rec) const override {
         hit_record temp_rec;
         bool hit_anything = false;
-        auto closest_so_far = ray_t.max;
+        float closest_so_far = ray_t.max;
 
         for (const auto& object : objects) {
             if (object->hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
