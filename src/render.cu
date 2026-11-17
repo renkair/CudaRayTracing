@@ -84,9 +84,14 @@ __global__ void resolveKernel(color* sumColor, unsigned char * pixels, int pass,
     if (i < width && j < height) {
         int index = (j * width + i) * 3;
         int idx = j * width + i;
-        pixels[index + 0] = static_cast<unsigned char>(255.999 * (sumColor[idx].x()/pass));
-        pixels[index + 1] = static_cast<unsigned char>(255.999 * (sumColor[idx].y()/pass));
-        pixels[index + 2] = static_cast<unsigned char>(255.999 * (sumColor[idx].z()/pass));
+
+        double r = linear_to_gamma(sumColor[idx].x()/pass);
+        double g = linear_to_gamma(sumColor[idx].y()/pass);
+        double b = linear_to_gamma(sumColor[idx].z()/pass);
+
+        pixels[index + 0] = static_cast<unsigned char>(255.999 * r);
+        pixels[index + 1] = static_cast<unsigned char>(255.999 * g);
+        pixels[index + 2] = static_cast<unsigned char>(255.999 * b);
     }
 
 }
