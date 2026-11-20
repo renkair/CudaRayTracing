@@ -127,13 +127,15 @@ void renderPass(color* sumColor, unsigned char* dst, int pass, int width, int he
     resolveKernel<<<grid_dim, block_dim>>>(sumColor, dst, pass, width, height);
 }
 
-void destroy() {
+void cudaDestroy() {
     cudaFree(devStates);
     cudaFree(cameraData_d);
     cudaFree(sceneData_d);
     cameraData_d = nullptr;
     sceneData_d  = nullptr;
     devStates = nullptr;
+
+
 }
 
 
