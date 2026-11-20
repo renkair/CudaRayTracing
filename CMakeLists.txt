@@ -32,6 +32,8 @@ add_executable(CudaRayTracing
         src/render.cu
         src/application.cpp
         src/Application.h
+        src/ImguiRenderer.cpp
+        src/ImguiRenderer.h
 )
 
 target_include_directories(CudaRayTracing PRIVATE externals/glad/include

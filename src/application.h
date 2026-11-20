@@ -10,6 +10,7 @@
 #include "hittable_list.h"
 #include "imgui.h"
 #include "GLFW/glfw3.h"
+#include "ImguiRenderer.h"
 
 
 class Application {
@@ -22,18 +23,19 @@ private:
     void initWorld(hittable_list& world);
 
     hittable_list world;
-    GLFWwindow* window;
-    float main_scale;
+    GLFWwindow*window = nullptr;
+    float main_scale = 0;
+    ImguiRenderer* imguiRenderer = nullptr;
+
     GLuint pbo = 0;
     cudaGraphicsResource* pboRes = nullptr;
     color* sumColor = nullptr;
     int pass = 0;
     camera cam;
-    unsigned int texture;
-    unsigned int shaderProgram;
+    unsigned int texture = 0;
+    unsigned int shaderProgram = 0;
 
     // IMGUI State
-    bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     const char* vertexShaderSource = R"(
